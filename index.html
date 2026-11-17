@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Taman Notice Board</title>
+<style>
+  :root {
+    --green: #1b6e4a;
+    --green-dark: #145238;
+    --bg: #f4f6f4;
+    --card: #ffffff;
+    --text: #222;
+    --muted: #666;
+    --line: #e2e6e2;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  header {
+    background: var(--green);
+    color: #fff;
+    padding: 18px 16px 14px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: 0 2px 6px rgba(0,0,0,.15);
+  }
+  header h1 { font-size: 1.25rem; }
+  header p { font-size: .85rem; opacity: .85; }
+  main { max-width: 560px; margin: 0 auto; padding: 16px 12px 40px; }
+
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .toolbar input {
+    flex: 1;
+    min-width: 160px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 1rem;
+    background: var(--card);
+  }
+  .toolbar select {
+    padding: 10px 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: .95rem;
+    background: var(--card);
+  }
+
+  .notice {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 14px 12px;
+    margin-bottom: 12px;
+  }
+  .notice h2 { font-size: 1.05rem; margin-bottom: 4px; }
+  .notice .meta {
+    font-size: .78rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: .72rem;
+    font-weight: 600;
+    color: #fff;
+    background: var(--green);
+  }
+  .badge.urgent { background: #c0392b; }
+  .badge.event { background: #2963a8; }
+  .badge.maintenance { background: #b07d2b; }
+  .badge.community { background: #5a7d2a; }
+  .notice time { color: var(--muted); }
+  .notice .body { font-size: .95rem; white-space: pre-line; }
+
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 40px 10px;
+  }
+  footer {
+    text-align: center;
+    font-size: .78rem;
+    color: var(--muted);
+    padding: 12px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📋 Taman Notice Board</h1>
+  <p>Latest notices from your residents' association</p>
+</header>
+
+<main>
+  <div class="toolbar">
+    <input id="search" type="search" placeholder="Search notices…" aria-label="Search notices">
+    <select id="filter" aria-label="Filter by category">
+      <option value="">All</option>
+      <option value="urgent">Urgent</option>
+      <option value="event">Event</option>
+      <option value="maintenance">Maintenance</option>
+      <option value="community">Community</option>
+    </select>
+  </div>
+
+  <div id="list"></div>
+
+  <noscript><p class="empty">Please enable JavaScript to view notices.</p></noscript>
+</main>
+
+<footer>Updated by the Residents' Association Committee</footer>
+
+<script>
+// ── EDIT NOTICES HERE ──────────────────────────────────────────────
+// Add new notices at the TOP of the array (they're shown newest first).
+// date format: "YYYY-MM-DD". category: urgent | event | maintenance | community
+const NOTICES = [
+  {
+    title: "AGM 2026 — mark your calendar",
+    date: "2026-11-15",
+    category: "event",
+    body: "The Annual General Meeting will be held at the community hall on Sunday, 13 December 2026, 10:00 AM. Light refreshments provided. Please bring your gate access card for check-in."
+  },
+  {
+    title: "Water supply interruption next Tuesday",
+    date: "2026-11-12",
+    category: "urgent",
+    body: "Syabas scheduled maintenance will cut water supply from 9:00 AM to 4:00 PM on Tuesday, 24 November. Please store water in advance. Contact the committee if you have concerns."
+  },
+  {
+    title: "Playground equipment repainting",
+    date: "2026-11-08",
+    category: "maintenance",
+    body: "The swings and slide area will be closed from 20–22 November while contractors repaint the equipment. Parents are advised to keep children away during works."
+  },
+  {
+    title: "Gotong-royong this Saturday",
+    date: "2026-11-03",
+    category: "community",
+    body: "Community clean-up starting 8:00 AM at the guardhouse. Gloves and rubbish bags provided — all residents welcome. Breakfast will be served after."
+  }
+];
+// ───────────────────────────────────────────────────────────────────
+
+const listEl = document.getElementById("list");
+const searchEl = document.getElementById("search");
+const filterEl = document.getElementById("filter");
+
+// Array is authored newest-first; sort again by date so it stays correct
+// even if someone appends at the bottom.
+function sorted() {
+  return [...NOTICES].sort((a, b) => b.date.localeCompare(a.date));
+}
+
+function fmtDate(iso) {
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function render() {
+  const q = searchEl.value.trim().toLowerCase();
+  const cat = filterEl.value;
+  const items = sorted().filter(n =>
+    (!cat || n.category === cat) &&
+    (!q || (n.title + " " + n.body).toLowerCase().includes(q))
+  );
+
+  if (items.length === 0) {
+    listEl.innerHTML = '<p class="empty">No notices found.</p>';
+    return;
+  }
+
+  listEl.innerHTML = items.map(n => `
+    <article class="notice">
+      <h2>${escapeHtml(n.title)}</h2>
+      <div class="meta">
+        <span class="badge ${n.category}">${n.category}</span>
+        <time datetime="${n.date}">${fmtDate(n.date)}</time>
+      </div>
+      <div class="body">${escapeHtml(n.body)}</div>
+    </article>
+  `).join("");
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[c]);
+}
+
+searchEl.addEventListener("input", render);
+filterEl.addEventListener("change", render);
+render();
+</script>
+</body>
+</html>
